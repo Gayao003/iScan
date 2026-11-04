@@ -1,5 +1,5 @@
 // iScan Service Worker
-const CACHE_NAME = 'iscan-v1';
+const CACHE_NAME = 'iscan-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -30,7 +30,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Network-first for dynamic API routes (/api/...)
+  // 1. Dynamic API routes: always Network-first (fetch live database on Supabase/Vercel)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -46,7 +46,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static shell assets
+  // 2. HTML page navigations: Network-first with offline cache fallback
+  // This guarantees that any new Git push to Vercel immediately loads on the user's phone
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.status === 200) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => {
+            return cached || caches.match('/');
+          });
+        })
+    );
+    return;
+  }
+
+  // 3. Static assets & icons: Cache-first for high speed, network fallback
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {

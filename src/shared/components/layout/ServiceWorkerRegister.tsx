@@ -8,11 +8,21 @@ export function ServiceWorkerRegister() {
       navigator.serviceWorker
         .register("/sw.js")
         .then((registration) => {
-          console.log("iScan SW registered with scope:", registration.scope);
+          // Check for any updates to the service worker whenever the app opens
+          registration.update().catch(() => {});
         })
         .catch((error) => {
           console.warn("iScan SW registration failed:", error);
         });
+
+      // Reload smoothly if a new service worker took over to ensure newest UI
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
     }
   }, []);
 
