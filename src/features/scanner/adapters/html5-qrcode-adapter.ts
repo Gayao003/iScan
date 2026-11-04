@@ -25,22 +25,17 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         await this.stop();
       }
 
-      // Explicitly support all standard 1D product retail barcodes and 2D codes
+      // Explicitly support standard retail barcodes & warehouse codes (high-performance decoding)
       const formatsToSupport = [
         Html5QrcodeSupportedFormats.EAN_13,          // Standard retail (e.g. Coca-Cola, grocery items)
         Html5QrcodeSupportedFormats.EAN_8,           // Small retail packaging
         Html5QrcodeSupportedFormats.UPC_A,           // North American standard retail
         Html5QrcodeSupportedFormats.UPC_E,           // Zero-suppressed UPC
-        Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
         Html5QrcodeSupportedFormats.CODE_128,        // Logistics, warehouse inventory
         Html5QrcodeSupportedFormats.CODE_39,         // Industrial inventory
-        Html5QrcodeSupportedFormats.CODE_93,
         Html5QrcodeSupportedFormats.ITF,             // Interleaved 2 of 5 (cartons/cases)
-        Html5QrcodeSupportedFormats.CODABAR,
         Html5QrcodeSupportedFormats.QR_CODE,         // 2D QR Code
         Html5QrcodeSupportedFormats.DATA_MATRIX,     // 2D Data Matrix
-        Html5QrcodeSupportedFormats.AZTEC,
-        Html5QrcodeSupportedFormats.PDF_417,
       ];
 
       // Enable native mobile hardware BarcodeDetector API for fast curved-surface & reflection decoding
@@ -112,11 +107,11 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
           facingMode: "environment",
         },
         {
-          fps: 20, // Higher scan rate for faster detection
-          // Rectangular scanning zone matching horizontal 1D barcodes and QR codes
+          fps: 15, // Optimal 15 fps gives mobile CPU time to decode clean frames
+          // Generous rectangular scanning zone matching horizontal 1D barcodes and QR codes
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            const width = Math.min(Math.floor(viewfinderWidth * 0.90), 420);
-            const height = Math.min(Math.floor(viewfinderHeight * 0.58), 280);
+            const width = Math.min(Math.floor(viewfinderWidth * 0.92), 440);
+            const height = Math.min(Math.floor(viewfinderHeight * 0.62), 300);
             return { width, height };
           },
           aspectRatio: 1.0,
@@ -129,6 +124,23 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         qrCodeSuccessCallback,
         qrCodeErrorCallback
       );
+
+      // Attempt continuous auto-focus on device camera if supported
+      try {
+        const video = document.querySelector<HTMLVideoElement>(`#${elementId} video`);
+        if (video && video.srcObject) {
+          const stream = video.srcObject as MediaStream;
+          const track = stream.getVideoTracks()[0];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const capabilities = (track as any)?.getCapabilities?.();
+          if (capabilities?.focusMode?.includes("continuous")) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (track as any).applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+          }
+        }
+      } catch (focusErr) {
+        console.debug("Continuous camera focus not supported on this browser:", focusErr);
+      }
 
       this.scanning = true;
       this.isPaused = false;

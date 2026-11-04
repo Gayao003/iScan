@@ -151,7 +151,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         {isScanning && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             {/* Viewfinder Target Frame - Wide horizontal rectangle for 1D barcodes and 2D QR */}
-            <div className="w-[88%] h-[58%] max-w-[340px] max-h-[220px] border-2 border-dashed border-blue-400/90 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
+            <div className="w-[90%] h-[60%] max-w-[350px] max-h-[230px] border-2 border-dashed border-blue-400/90 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
               <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl-xl" />
               <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr-xl" />
               <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl-xl" />
@@ -160,8 +160,8 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
               {/* Laser scanning line animation */}
               <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_8px_rgba(56,189,248,0.8)] animate-pulse absolute top-1/2 -translate-y-1/2" />
             </div>
-            <p className="absolute bottom-5 text-center text-[11px] text-white/90 bg-black/70 px-3.5 py-1 rounded-full font-medium tracking-wide">
-              Align barcode lines horizontally inside box
+            <p className="absolute bottom-4 text-center text-[11px] text-white/95 bg-black/75 px-3 py-1 rounded-full font-medium tracking-wide border border-white/10 shadow-lg">
+              Hold bottle horizontally ~15–20cm away
             </p>
           </div>
         )}
@@ -255,24 +255,39 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
       </div>
 
       {/* Camera Controls Bar */}
-      <div className="mt-3 flex items-center justify-center gap-3 w-full max-w-md">
+      <div className="mt-3 flex items-center justify-center gap-2 w-full max-w-md">
         {isScanning ? (
-          <Button
-            onClick={stopScanner}
-            variant="outline"
-            size="sm"
-            className="w-full gap-2 text-slate-700 bg-white"
-          >
-            <CameraOff className="w-4 h-4 text-slate-500" />
-            <span>Stop Camera</span>
-          </Button>
+          <>
+            <Button
+              onClick={stopScanner}
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-2 text-slate-700 bg-white shadow-sm"
+            >
+              <CameraOff className="w-4 h-4 text-slate-500" />
+              <span>Stop Camera</span>
+            </Button>
+            <Button
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.location.reload();
+                }
+              }}
+              variant="outline"
+              size="sm"
+              title="Reload latest version from server"
+              className="px-3 text-slate-500 hover:text-slate-800 bg-white shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </>
         ) : (
           permissionState !== "prompt" && (
             <Button
               onClick={startScanner}
               variant="outline"
               size="sm"
-              className="w-full gap-2 text-slate-700 bg-white"
+              className="w-full gap-2 text-slate-700 bg-white shadow-sm"
             >
               <RefreshCw className="w-4 h-4 text-slate-500" />
               <span>Restart Camera</span>
