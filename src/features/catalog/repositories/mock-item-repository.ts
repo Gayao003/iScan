@@ -82,9 +82,9 @@ const SEED_ITEMS: Item[] = [
   {
     id: "item-007",
     code: "4801981127177",
-    name: "Coca-Cola Original Taste 500ml",
-    imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80",
-    description: "Coca-Cola carbonated soft drink bottle (500ml).",
+    name: "Coca-Cola Original Taste 190ml (Mismo)",
+    imageUrl: "https://images.unsplash.com/photo-1554866585-cd94860890b7?auto=format&fit=crop&w=600&q=80",
+    description: "Coca-Cola 190ml small PET bottle.",
     attributes: {
       category: "Beverages",
       unit: "bottle",

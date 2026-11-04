@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Item } from "@/shared/types/item";
 import { Button } from "@/shared/components/ui/Button";
+import { Input } from "@/shared/components/ui/Input";
 import { Badge } from "@/shared/components/ui/Badge";
 import { Card, CardContent } from "@/shared/components/ui/Card";
 import { BarcodeVisualizer } from "@/shared/components/ui/BarcodeVisualizer";
@@ -16,6 +17,9 @@ import {
   CheckCircle,
   Camera,
   Layers,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 
 interface ItemDetailCardProps {
@@ -23,23 +27,67 @@ interface ItemDetailCardProps {
   onRecordCountClick?: () => void;
 }
 
-export function ItemDetailCard({ item, onRecordCountClick }: ItemDetailCardProps) {
+export function ItemDetailCard({ item: initialItem, onRecordCountClick }: ItemDetailCardProps) {
+  const [item, setItem] = useState<Item>(initialItem);
   const [imageError, setImageError] = useState(false);
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const [activePhotoTab, setActivePhotoTab] = useState<"catalog" | "snapshot">("catalog");
+
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(initialItem.name);
+  const [editCategory, setEditCategory] = useState(initialItem.attributes?.category ? String(initialItem.attributes.category) : "Beverages");
+  const [editDesc, setEditDesc] = useState(initialItem.description || "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setItem(initialItem);
+    setEditName(initialItem.name);
+    setEditCategory(initialItem.attributes?.category ? String(initialItem.attributes.category) : "Beverages");
+    setEditDesc(initialItem.description || "");
+  }, [initialItem]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedSnapshot = sessionStorage.getItem(`iscan_snapshot_${item.code}`);
       if (savedSnapshot) {
         setSnapshotUrl(savedSnapshot);
-        // Default to showing snapshot if item has no catalog image
         if (!item.imageUrl) {
           setActivePhotoTab("snapshot");
         }
       }
     }
   }, [item.code, item.imageUrl]);
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+
+    try {
+      setIsSaving(true);
+      const res = await fetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: item.code,
+          name: editName.trim(),
+          category: editCategory.trim(),
+          description: editDesc.trim(),
+          imageUrl: item.imageUrl,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.item) {
+        setItem(data.item);
+        setIsEditing(false);
+      }
+    } catch (e) {
+      console.error("Failed to update item:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const hasValidCatalogImage = Boolean(item.imageUrl) && !imageError;
 
@@ -125,22 +173,79 @@ export function ItemDetailCard({ item, onRecordCountClick }: ItemDetailCardProps
       </div>
 
       <CardContent className="p-5 sm:p-6 space-y-5">
-        {/* Title and Category */}
-        <div>
-          {item.attributes?.category && (
-            <span className="text-xs font-semibold text-primary uppercase tracking-wider block mb-1">
-              {String(item.attributes.category)}
-            </span>
-          )}
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {item.name}
-          </h2>
-          {item.description && (
-            <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-              {item.description}
-            </p>
-          )}
-        </div>
+        {/* Title and Category (or Inline Edit Form) */}
+        {isEditing ? (
+          <form onSubmit={handleSaveEdit} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+              <span className="text-xs font-bold text-slate-800 uppercase">Edit Product Details</span>
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="text-xs text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Product Name</label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Category</label>
+              <Input
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                placeholder="e.g. Beverages"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Description / Size</label>
+              <Input
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                placeholder="e.g. 190ml small PET bottle"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button type="submit" variant="primary" size="sm" disabled={isSaving} className="gap-1.5">
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSaving ? "Saving..." : "Save Details"}</span>
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              {item.attributes?.category && (
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider block mb-1">
+                  {String(item.attributes.category)}
+                </span>
+              )}
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+                {item.name}
+              </h2>
+              {item.description && (
+                <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                  {item.description}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setIsEditing(true)}
+              title="Edit product details"
+              className="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Authentic Barcode Graphic & Number */}
         <BarcodeVisualizer code={item.code} />
