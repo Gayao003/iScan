@@ -1,0 +1,56 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  imageUrl    String
+  description String?
+  category    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  counts      InventoryCount[]
+
+  @@index([code])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  counts      InventoryCount[]
+}
+
+model InventoryCount {
+  id              String   @id @default(cuid())
+  itemId          String
+  item            Item     @relation(fields: [itemId], references: [id])
+  code            String
+  locationId      String
+  location        Location @relation(fields: [locationId], references: [id])
+  countedQuantity Float
+  status          String   @default("submitted") // draft, submitted, synced, recount_required, reconciled
+  capturedAt      DateTime @default(now())
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([itemId])
+  @@index([code])
+  @@index([locationId])
+  @@index([status])
+}

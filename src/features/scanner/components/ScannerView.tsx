@@ -1,0 +1,262 @@
+"use client";
+
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Html5QrcodeAdapter } from "../adapters/html5-qrcode-adapter";
+import { PermissionStatus, ScanResult } from "@/shared/types/scanner";
+import { Button } from "@/shared/components/ui/Button";
+import { Alert, AlertTitle, AlertDescription } from "@/shared/components/ui/Alert";
+import {
+  Camera,
+  CameraOff,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+} from "lucide-react";
+import { scanHistoryStorage } from "@/features/history/storage/scan-history-storage";
+
+interface ScannerViewProps {
+  onScanSuccess?: (code: string) => void;
+}
+
+export function ScannerView({ onScanSuccess }: ScannerViewProps) {
+  const router = useRouter();
+  const adapterRef = useRef<Html5QrcodeAdapter | null>(null);
+  const [permissionState, setPermissionState] = useState<PermissionStatus>("prompt");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [detectedCode, setDetectedCode] = useState<string | null>(null);
+
+  const scannerElementId = "iscan-camera-preview";
+
+  const handleDetected = useCallback((result: ScanResult) => {
+    setDetectedCode(result.code);
+    setIsScanning(false);
+    
+    // Pause adapter immediately upon detection
+    if (adapterRef.current) {
+      adapterRef.current.pause();
+    }
+
+    // Save to history
+    scanHistoryStorage.addEntry({
+      code: result.code,
+      status: "found",
+    });
+
+    if (onScanSuccess) {
+      onScanSuccess(result.code);
+    } else {
+      router.push(`/item/${encodeURIComponent(result.code)}`);
+    }
+  }, [onScanSuccess, router]);
+
+  const startScanner = async () => {
+    try {
+      setErrorMessage(null);
+      setDetectedCode(null);
+
+      // Check if getUserMedia is available in current browser/context
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        setPermissionState("unavailable");
+        setErrorMessage(
+          "Camera access is not supported by your browser or requires a secure HTTPS connection."
+        );
+        return;
+      }
+
+      if (!adapterRef.current) {
+        adapterRef.current = new Html5QrcodeAdapter();
+      }
+
+      setPermissionState("granted");
+      setIsScanning(true);
+
+      await adapterRef.current.start(
+        scannerElementId,
+        handleDetected,
+        (error) => {
+          const errStr = error.message.toLowerCase();
+          if (errStr.includes("permission") || errStr.includes("notallowederror")) {
+            setPermissionState("denied");
+            setErrorMessage(
+              "Camera permission was denied. Please allow camera permissions in your browser address bar."
+            );
+          } else if (errStr.includes("notfounderror") || errStr.includes("devicesnotfound")) {
+            setPermissionState("unavailable");
+            setErrorMessage("No active camera found on this device.");
+          } else {
+            setPermissionState("error");
+            setErrorMessage(error.message || "Failed to initialize camera scanner.");
+          }
+          setIsScanning(false);
+        }
+      );
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      const errStr = error.message.toLowerCase();
+      if (errStr.includes("permission") || errStr.includes("notallowederror")) {
+        setPermissionState("denied");
+        setErrorMessage("Camera access permission was denied.");
+      } else {
+        setPermissionState("error");
+        setErrorMessage(error.message || "Could not access camera.");
+      }
+      setIsScanning(false);
+    }
+  };
+
+  const stopScanner = async () => {
+    if (adapterRef.current) {
+      await adapterRef.current.stop();
+      setIsScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (adapterRef.current) {
+        adapterRef.current.stop();
+      }
+    };
+  }, []);
+
+  return (
+    <div className="w-full flex flex-col items-center">
+      {/* Scanner Viewport Container */}
+      <div className="relative w-full max-w-md aspect-square rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl flex items-center justify-center">
+        {/* html5-qrcode mount target */}
+        <div id={scannerElementId} className="w-full h-full" />
+
+        {/* Framing Overlay when scanning */}
+        {isScanning && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            {/* Viewfinder Target Frame */}
+            <div className="w-64 h-64 border-2 border-dashed border-blue-400/80 rounded-xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl" />
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr" />
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl" />
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br" />
+              
+              {/* Laser scanning line animation */}
+              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-pulse absolute top-1/2 -translate-y-1/2" />
+            </div>
+            <p className="absolute bottom-6 text-center text-xs text-white/80 bg-black/60 px-3 py-1 rounded-full font-medium">
+              Align barcode or QR code inside the box
+            </p>
+          </div>
+        )}
+
+        {/* State: Prompt (not yet started) */}
+        {!isScanning && permissionState === "prompt" && (
+          <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center text-white">
+            <div className="w-16 h-16 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center mb-4">
+              <Camera className="w-8 h-8" />
+            </div>
+            <h3 className="text-base font-semibold mb-1">Camera Scanner</h3>
+            <p className="text-xs text-slate-300 max-w-xs mb-6">
+              Camera access is used locally to detect item barcodes and QR codes. No video is uploaded or recorded.
+            </p>
+            <Button
+              onClick={startScanner}
+              variant="primary"
+              className="w-full max-w-xs gap-2 font-semibold shadow-lg"
+            >
+              <Camera className="w-4 h-4" />
+              <span>Start Camera Scanner</span>
+            </Button>
+          </div>
+        )}
+
+        {/* State: Denied */}
+        {permissionState === "denied" && !isScanning && (
+          <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center text-white">
+            <div className="w-14 h-14 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h3 className="text-sm font-semibold mb-1">Camera Permission Blocked</h3>
+            <p className="text-xs text-slate-300 max-w-xs mb-4">
+              Please click the camera or lock icon in your browser address bar to allow camera access.
+            </p>
+            <Button
+              onClick={startScanner}
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Try Again</span>
+            </Button>
+          </div>
+        )}
+
+        {/* State: Unavailable */}
+        {permissionState === "unavailable" && !isScanning && (
+          <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-6 text-center text-white">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mb-3">
+              <CameraOff className="w-7 h-7" />
+            </div>
+            <h3 className="text-sm font-semibold mb-1">No Camera Available</h3>
+            <p className="text-xs text-slate-300 max-w-xs mb-4">
+              {errorMessage || "No compatible camera device was detected on this system."}
+            </p>
+            <p className="text-xs text-blue-300">
+              Use manual code entry below to look up items.
+            </p>
+          </div>
+        )}
+
+        {/* Detected Code feedback */}
+        {detectedCode && (
+          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center text-white">
+            <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2" />
+            <p className="text-sm font-medium text-slate-300">Code Detected</p>
+            <p className="text-lg font-mono font-bold text-white mt-1">{detectedCode}</p>
+            <p className="text-xs text-slate-400 mt-2">Loading item details...</p>
+          </div>
+        )}
+      </div>
+
+      {/* Camera Controls Bar */}
+      <div className="mt-3 flex items-center justify-center gap-3 w-full max-w-md">
+        {isScanning ? (
+          <Button
+            onClick={stopScanner}
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 text-slate-700 bg-white"
+          >
+            <CameraOff className="w-4 h-4 text-slate-500" />
+            <span>Stop Camera</span>
+          </Button>
+        ) : (
+          permissionState !== "prompt" && (
+            <Button
+              onClick={startScanner}
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 text-slate-700 bg-white"
+            >
+              <RefreshCw className="w-4 h-4 text-slate-500" />
+              <span>Restart Camera</span>
+            </Button>
+          )
+        )}
+      </div>
+
+      {/* Error alert if any */}
+      {errorMessage && permissionState === "error" && (
+        <Alert variant="destructive" className="mt-4 max-w-md">
+          <AlertCircle className="w-4 h-4" />
+          <AlertTitle>Scanner Error</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
