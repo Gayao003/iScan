@@ -54,6 +54,34 @@ export class CatalogService {
   async getAllItems(): Promise<Item[]> {
     return this.repo.findAll();
   }
+
+  async createItem(input: {
+    code: string;
+    name: string;
+    imageUrl?: string;
+    description?: string;
+    category?: string;
+  }): Promise<{ item: Item | null; error?: string }> {
+    const validation = validateItemCode(input.code);
+    if (!validation.valid) {
+      return { item: null, error: validation.error };
+    }
+    if (!input.name || input.name.trim() === "") {
+      return { item: null, error: "Item name is required." };
+    }
+
+    try {
+      const item = await this.repo.create({
+        ...input,
+        code: normalizeItemCode(input.code),
+        name: input.name.trim(),
+      });
+      return { item };
+    } catch (err: unknown) {
+      console.error("[CatalogService] createItem error:", err);
+      return { item: null, error: "Failed to create catalog item." };
+    }
+  }
 }
 
 export const catalogService = new CatalogService();

@@ -43,6 +43,46 @@ export class PrismaItemRepository implements ItemRepository {
       isActive: record.isActive,
     }));
   }
+
+  async create(input: {
+    id?: string;
+    code: string;
+    name: string;
+    imageUrl?: string;
+    description?: string;
+    category?: string;
+  }): Promise<Item> {
+    const normalized = normalizeItemCode(input.code);
+    const record = await prisma.item.upsert({
+      where: { code: normalized },
+      update: {
+        name: input.name,
+        imageUrl: input.imageUrl || "",
+        description: input.description || null,
+        category: input.category || null,
+        isActive: true,
+      },
+      create: {
+        id: input.id || `item-${Date.now()}`,
+        code: normalized,
+        name: input.name,
+        imageUrl: input.imageUrl || "",
+        description: input.description || null,
+        category: input.category || null,
+        isActive: true,
+      },
+    });
+
+    return {
+      id: record.id,
+      code: record.code,
+      name: record.name,
+      imageUrl: record.imageUrl,
+      description: record.description ?? undefined,
+      attributes: record.category ? { category: record.category } : undefined,
+      isActive: record.isActive,
+    };
+  }
 }
 
 export const prismaItemRepository = new PrismaItemRepository();

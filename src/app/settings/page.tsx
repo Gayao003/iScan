@@ -56,7 +56,7 @@ export default function SettingsPage() {
               <span>Progressive Web App (PWA)</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs text-slate-600">
+          <CardContent className="space-y-3 text-xs text-slate-600">
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
               <span>Installable Manifest</span>
               <Badge variant="success">Active (/manifest.json)</Badge>
@@ -65,9 +65,22 @@ export default function SettingsPage() {
               <span>Service Worker</span>
               <Badge variant="success">Registered (/sw.js)</Badge>
             </div>
-            <div className="flex justify-between items-center py-1">
+            <div className="flex justify-between items-center py-1 border-b border-slate-100">
               <span>Display Mode</span>
-              <Badge variant="outline">standalone (PWA)</Badge>
+              <Badge variant="outline">standalone (fullscreen PWA)</Badge>
+            </div>
+            <div className="pt-2">
+              <p className="font-semibold text-slate-800 mb-1">
+                How to Add to Home Screen:
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-slate-500">
+                <li><strong className="text-slate-700">Android Chrome:</strong> Tap the 3 dots menu (⋮) → tap <em>&quot;Install app&quot;</em> or <em>&quot;Add to Home Screen&quot;</em>.</li>
+                <li><strong className="text-slate-700">iPhone / iPad Safari:</strong> Tap the Share button (square with arrow) → tap <em>&quot;Add to Home Screen&quot;</em>.</li>
+                <li><strong className="text-slate-700">Desktop Chrome/Edge:</strong> Click the Install icon in the browser address bar.</li>
+              </ul>
+              <p className="text-[11px] text-blue-600 mt-2 font-medium">
+                Once launched from your Home Screen icon, the browser URL address bar disappears completely, giving you a native app experience.
+              </p>
             </div>
           </CardContent>
         </Card>

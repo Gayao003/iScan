@@ -20,6 +20,20 @@ body {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
 
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@media (display-mode: standalone) {
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  header {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+}
+
 /* Prevent unwanted pull-to-refresh on scanner view */
 .no-overscroll {
   overscroll-behavior-y: contain;

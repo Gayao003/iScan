@@ -19,19 +19,44 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
     if (typeof window === "undefined") return;
 
     try {
-      const { Html5Qrcode } = await import("html5-qrcode");
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
 
       if (this.scannerInstance) {
         await this.stop();
       }
 
-      this.scannerInstance = new Html5Qrcode(elementId);
+      // Explicitly support all standard 1D product retail barcodes and 2D codes
+      const formatsToSupport = [
+        Html5QrcodeSupportedFormats.EAN_13,          // Standard retail (e.g. Coca-Cola, grocery items)
+        Html5QrcodeSupportedFormats.EAN_8,           // Small retail packaging
+        Html5QrcodeSupportedFormats.UPC_A,           // North American standard retail
+        Html5QrcodeSupportedFormats.UPC_E,           // Zero-suppressed UPC
+        Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
+        Html5QrcodeSupportedFormats.CODE_128,        // Logistics, warehouse inventory
+        Html5QrcodeSupportedFormats.CODE_39,         // Industrial inventory
+        Html5QrcodeSupportedFormats.CODE_93,
+        Html5QrcodeSupportedFormats.ITF,             // Interleaved 2 of 5 (cartons/cases)
+        Html5QrcodeSupportedFormats.CODABAR,
+        Html5QrcodeSupportedFormats.QR_CODE,         // 2D QR Code
+        Html5QrcodeSupportedFormats.DATA_MATRIX,     // 2D Data Matrix
+        Html5QrcodeSupportedFormats.AZTEC,
+        Html5QrcodeSupportedFormats.PDF_417,
+      ];
+
+      // Enable native mobile hardware BarcodeDetector API for fast curved-surface & reflection decoding
+      this.scannerInstance = new Html5Qrcode(elementId, {
+        formatsToSupport,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true,
+        },
+        verbose: false,
+      });
 
       const qrCodeSuccessCallback = (decodedText: string, decodedResult: unknown) => {
         const now = Date.now();
         const normalized = normalizeItemCode(decodedText);
 
-        // Debounce duplicate scans
+        // Debounce duplicate scans within debounceMs window
         if (
           normalized === this.lastScannedCode &&
           now - this.lastScannedTime < this.debounceMs
@@ -46,24 +71,60 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         this.lastScannedCode = normalized;
         this.lastScannedTime = now;
 
+        // Capture snapshot frame from the active camera video element
+        let snapshotUrl: string | undefined;
+        try {
+          const video = document.querySelector<HTMLVideoElement>(`#${elementId} video`);
+          if (video && video.videoWidth && video.videoHeight) {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              snapshotUrl = canvas.toDataURL("image/jpeg", 0.85);
+              // Save to sessionStorage for result page
+              sessionStorage.setItem(`iscan_snapshot_${normalized}`, snapshotUrl);
+            }
+          }
+        } catch (e) {
+          console.warn("Could not capture video frame snapshot:", e);
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formatName = (decodedResult as any)?.result?.format?.formatName || "BARCODE";
+
         onSuccess({
           code: normalized,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          format: (decodedResult as any)?.result?.format?.formatName || "QR_OR_BARCODE",
+          format: formatName,
           timestamp: now,
+          snapshotUrl,
         });
       };
 
       const qrCodeErrorCallback = (_errorMessage: string) => {
-        // Continuous frame analysis error is normal when no barcode is in view
+        // Continuous non-detection frames are expected during scanning
       };
 
+      // Configuration optimized for both 1D horizontal product barcodes and 2D QR codes
       await this.scannerInstance.start(
-        { facingMode: "environment" },
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
+          facingMode: "environment",
+        },
+        {
+          fps: 20, // Higher scan rate for faster detection
+          // Rectangular scanning zone matching horizontal 1D barcodes and QR codes
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const width = Math.min(Math.floor(viewfinderWidth * 0.90), 420);
+            const height = Math.min(Math.floor(viewfinderHeight * 0.58), 280);
+            return { width, height };
+          },
           aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: "environment",
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 },
+          },
         },
         qrCodeSuccessCallback,
         qrCodeErrorCallback

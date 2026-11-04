@@ -9,6 +9,7 @@ export interface ScanResult {
   code: string;
   format?: string;
   timestamp: number;
+  snapshotUrl?: string;
 }
 
 export interface ScannerAdapter {

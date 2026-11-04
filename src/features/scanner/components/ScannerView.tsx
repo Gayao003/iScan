@@ -30,9 +30,21 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
 
   const scannerElementId = "iscan-camera-preview";
 
+  const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
+  const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null);
+
   const handleDetected = useCallback((result: ScanResult) => {
     setDetectedCode(result.code);
+    setDetectedFormat(result.format || "BARCODE");
+    setSnapshotPreview(result.snapshotUrl || null);
     setIsScanning(false);
+
+    // Haptic feedback if supported on mobile
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate(80);
+      } catch {}
+    }
     
     // Pause adapter immediately upon detection
     if (adapterRef.current) {
@@ -48,7 +60,9 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
     if (onScanSuccess) {
       onScanSuccess(result.code);
     } else {
-      router.push(`/item/${encodeURIComponent(result.code)}`);
+      setTimeout(() => {
+        router.push(`/item/${encodeURIComponent(result.code)}`);
+      }, 500);
     }
   }, [onScanSuccess, router]);
 
@@ -136,18 +150,18 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         {/* Framing Overlay when scanning */}
         {isScanning && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            {/* Viewfinder Target Frame */}
-            <div className="w-64 h-64 border-2 border-dashed border-blue-400/80 rounded-xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
-              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl" />
-              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr" />
-              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl" />
-              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br" />
+            {/* Viewfinder Target Frame - Wide horizontal rectangle for 1D barcodes and 2D QR */}
+            <div className="w-[88%] h-[58%] max-w-[340px] max-h-[220px] border-2 border-dashed border-blue-400/90 rounded-2xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
+              <div className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-blue-500 -mt-1 -ml-1 rounded-tl-xl" />
+              <div className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-blue-500 -mt-1 -mr-1 rounded-tr-xl" />
+              <div className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-blue-500 -mb-1 -ml-1 rounded-bl-xl" />
+              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-blue-500 -mb-1 -mr-1 rounded-br-xl" />
               
               {/* Laser scanning line animation */}
-              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-pulse absolute top-1/2 -translate-y-1/2" />
+              <div className="w-full h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_8px_rgba(56,189,248,0.8)] animate-pulse absolute top-1/2 -translate-y-1/2" />
             </div>
-            <p className="absolute bottom-6 text-center text-xs text-white/80 bg-black/60 px-3 py-1 rounded-full font-medium">
-              Align barcode or QR code inside the box
+            <p className="absolute bottom-5 text-center text-[11px] text-white/90 bg-black/70 px-3.5 py-1 rounded-full font-medium tracking-wide">
+              Align barcode lines horizontally inside box
             </p>
           </div>
         )}
@@ -211,12 +225,30 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
           </div>
         )}
 
-        {/* Detected Code feedback */}
+        {/* Detected Code feedback overlay with snapshot thumbnail */}
         {detectedCode && (
-          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center text-white">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2" />
-            <p className="text-sm font-medium text-slate-300">Code Detected</p>
-            <p className="text-lg font-mono font-bold text-white mt-1">{detectedCode}</p>
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center text-white z-20 animate-in fade-in zoom-in-95 duration-200">
+            {snapshotPreview ? (
+              <div className="relative w-28 h-20 rounded-xl overflow-hidden border-2 border-emerald-400 shadow-lg mb-3 bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={snapshotPreview}
+                  alt="Scanned barcode snapshot"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-1 right-1 bg-emerald-500 rounded-full p-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                </div>
+              </div>
+            ) : (
+              <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-2" />
+            )}
+            <p className="text-xs uppercase tracking-wider font-semibold text-emerald-400">
+              {detectedFormat || "Barcode"} Detected
+            </p>
+            <p className="text-xl font-mono font-bold text-white mt-1 tracking-wider">
+              {detectedCode}
+            </p>
             <p className="text-xs text-slate-400 mt-2">Loading item details...</p>
           </div>
         )}

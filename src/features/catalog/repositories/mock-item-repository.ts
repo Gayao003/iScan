@@ -79,6 +79,18 @@ const SEED_ITEMS: Item[] = [
     },
     isActive: true,
   },
+  {
+    id: "item-007",
+    code: "4801981127177",
+    name: "Coca-Cola Original Taste 500ml",
+    imageUrl: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80",
+    description: "Coca-Cola carbonated soft drink bottle (500ml).",
+    attributes: {
+      category: "Beverages",
+      unit: "bottle",
+    },
+    isActive: true,
+  },
 ];
 
 export class MockItemRepository implements ItemRepository {
@@ -98,6 +110,28 @@ export class MockItemRepository implements ItemRepository {
 
   async findAll(): Promise<Item[]> {
     return Array.from(this.items.values());
+  }
+
+  async create(input: {
+    id?: string;
+    code: string;
+    name: string;
+    imageUrl?: string;
+    description?: string;
+    category?: string;
+  }): Promise<Item> {
+    const normalized = normalizeItemCode(input.code);
+    const item: Item = {
+      id: input.id || `item-${Date.now()}`,
+      code: normalized,
+      name: input.name,
+      imageUrl: input.imageUrl || "",
+      description: input.description,
+      attributes: input.category ? { category: input.category } : undefined,
+      isActive: true,
+    };
+    this.items.set(normalized, item);
+    return item;
   }
 }
 

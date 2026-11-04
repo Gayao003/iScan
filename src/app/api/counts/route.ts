@@ -10,6 +10,8 @@ const createCountSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const counts = await inventoryService.getAllCounts();
