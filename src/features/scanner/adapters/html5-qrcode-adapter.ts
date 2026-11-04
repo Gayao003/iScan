@@ -2,6 +2,28 @@ import { IScannerAdapter } from "./scanner-adapter.interface";
 import { ScanResult } from "@/shared/types/scanner";
 import { normalizeItemCode } from "@/shared/utils/normalize";
 
+function isValidGs1Checksum(code: string): boolean {
+  if (code.length === 13 && /^\d{13}$/.test(code)) {
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      const digit = parseInt(code[i], 10);
+      sum += i % 2 === 0 ? digit : digit * 3;
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    return checkDigit === parseInt(code[12], 10);
+  }
+  if (code.length === 8 && /^\d{8}$/.test(code)) {
+    let sum = 0;
+    for (let i = 0; i < 7; i++) {
+      const digit = parseInt(code[i], 10);
+      sum += i % 2 === 0 ? digit * 3 : digit;
+    }
+    const checkDigit = (10 - (sum % 10)) % 10;
+    return checkDigit === parseInt(code[7], 10);
+  }
+  return true;
+}
+
 export class Html5QrcodeAdapter implements IScannerAdapter {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private scannerInstance: any = null;
@@ -10,6 +32,11 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
   private lastScannedCode = "";
   private lastScannedTime = 0;
   private readonly debounceMs = 1500;
+
+  // Consensus candidate tracking (eliminates single-frame optical glare/misreads)
+  private pendingCandidate = "";
+  private pendingCandidateCount = 0;
+  private pendingCandidateTimestamp = 0;
 
   async start(
     elementId: string,
@@ -26,11 +53,10 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
       }
 
       // Explicitly support standard retail barcodes & warehouse codes (high-performance decoding)
+      // Note: UPC_A (12-digit) is excluded to prevent partial 12-digit phantom truncations on 13-digit EAN items
       const formatsToSupport = [
-        Html5QrcodeSupportedFormats.EAN_13,          // Standard retail (e.g. Coca-Cola, grocery items)
+        Html5QrcodeSupportedFormats.EAN_13,          // Standard 13-digit retail barcodes (Coca-Cola, groceries)
         Html5QrcodeSupportedFormats.EAN_8,           // Small retail packaging
-        Html5QrcodeSupportedFormats.UPC_A,           // North American standard retail
-        Html5QrcodeSupportedFormats.UPC_E,           // Zero-suppressed UPC
         Html5QrcodeSupportedFormats.CODE_128,        // Logistics, warehouse inventory
         Html5QrcodeSupportedFormats.CODE_39,         // Industrial inventory
         Html5QrcodeSupportedFormats.ITF,             // Interleaved 2 of 5 (cartons/cases)
@@ -51,6 +77,18 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         const now = Date.now();
         const normalized = normalizeItemCode(decodedText);
 
+        if (this.isPaused) return;
+
+        // Discard 12-digit partial reads to prevent phantom truncations
+        if (/^\d{12}$/.test(normalized)) {
+          return;
+        }
+
+        // Validate GS1 checksum for 13-digit EAN retail barcodes
+        if (/^\d{13}$/.test(normalized) && !isValidGs1Checksum(normalized)) {
+          return;
+        }
+
         // Debounce duplicate scans within debounceMs window
         if (
           normalized === this.lastScannedCode &&
@@ -59,10 +97,32 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
           return;
         }
 
-        if (this.isPaused) {
-          return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formatName = (decodedResult as any)?.result?.format?.formatName || "BARCODE";
+        const is2DCode = formatName.includes("QR") || formatName.includes("MATRIX");
+
+        // 2D QR codes have built-in Reed-Solomon checksums.
+        // 1D barcodes require 2 consecutive matching frames to prevent optical reflections from misreading.
+        if (!is2DCode) {
+          if (
+            this.pendingCandidate === normalized &&
+            now - this.pendingCandidateTimestamp < 800
+          ) {
+            this.pendingCandidateCount++;
+            if (this.pendingCandidateCount < 2) {
+              return; // Await confirmation frame
+            }
+          } else {
+            this.pendingCandidate = normalized;
+            this.pendingCandidateCount = 1;
+            this.pendingCandidateTimestamp = now;
+            return;
+          }
         }
 
+        // Confirmed!
+        this.pendingCandidate = "";
+        this.pendingCandidateCount = 0;
         this.lastScannedCode = normalized;
         this.lastScannedTime = now;
 
@@ -86,9 +146,6 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
           console.warn("Could not capture video frame snapshot:", e);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const formatName = (decodedResult as any)?.result?.format?.formatName || "BARCODE";
-
         onSuccess({
           code: normalized,
           format: formatName,
@@ -108,6 +165,7 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         },
         {
           fps: 15, // Optimal 15 fps gives mobile CPU time to decode clean frames
+          disableFlip: true, // Crucial: Stop rear-camera horizontal mirroring that inverts 1D bars
           // Generous rectangular scanning zone matching horizontal 1D barcodes and QR codes
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             const width = Math.min(Math.floor(viewfinderWidth * 0.92), 440);
