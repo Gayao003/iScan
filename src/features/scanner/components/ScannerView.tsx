@@ -39,10 +39,29 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
     setSnapshotPreview(result.snapshotUrl || null);
     setIsScanning(false);
 
-    // Haptic feedback if supported on mobile
+    // Haptic and audio beep feedback upon successful detection
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       try {
         navigator.vibrate(80);
+      } catch {}
+    }
+    if (typeof window !== "undefined") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.12);
+        }
       } catch {}
     }
     
@@ -142,8 +161,8 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* Scanner Viewport Container */}
-      <div className="relative w-full max-w-md aspect-square rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl flex items-center justify-center">
+      {/* Scanner Viewport Container: 4:3 native smartphone aspect ratio */}
+      <div className="relative w-full max-w-md aspect-[4/3] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl flex items-center justify-center">
         {/* html5-qrcode mount target */}
         <div id={scannerElementId} className="w-full h-full" />
 

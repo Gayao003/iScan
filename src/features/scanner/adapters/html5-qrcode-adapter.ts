@@ -130,25 +130,18 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         // Continuous non-detection frames are expected during scanning
       };
 
-      // Configuration optimized for both 1D horizontal product barcodes and 2D QR codes
+      // Configuration: full-frame detection without qrbox cropping
+      // Eliminates coordinate mismatch bugs on Android/Huawei display scaling
       await this.scannerInstance.start(
         {
           facingMode: "environment",
         },
         {
           fps: 15, // Optimal 15 fps gives mobile CPU time to decode clean frames
-          disableFlip: true, // Crucial: Stop rear-camera horizontal mirroring that inverts 1D bars
-          // Generous rectangular scanning zone matching horizontal 1D barcodes and QR codes
-          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-            const width = Math.min(Math.floor(viewfinderWidth * 0.92), 440);
-            const height = Math.min(Math.floor(viewfinderHeight * 0.62), 300);
-            return { width, height };
-          },
-          aspectRatio: 1.0,
+          disableFlip: true, // Stop rear-camera horizontal mirroring that inverts 1D bars
+          aspectRatio: 1.333333, // 4:3 matches native smartphone camera sensor ratio
           videoConstraints: {
             facingMode: "environment",
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 },
           },
         },
         qrCodeSuccessCallback,
