@@ -33,11 +33,6 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
   private lastScannedTime = 0;
   private readonly debounceMs = 1500;
 
-  // Consensus candidate tracking (eliminates single-frame optical glare/misreads)
-  private pendingCandidate = "";
-  private pendingCandidateCount = 0;
-  private pendingCandidateTimestamp = 0;
-
   async start(
     elementId: string,
     onSuccess: (result: ScanResult) => void,
@@ -98,30 +93,8 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const formatName = (decodedResult as any)?.result?.format?.formatName || "BARCODE";
-        const is2DCode = formatName.includes("QR") || formatName.includes("MATRIX");
 
-        // 2D QR codes have built-in Reed-Solomon checksums.
-        // 1D barcodes require 2 consecutive matching frames to prevent optical reflections from misreading.
-        if (!is2DCode) {
-          if (
-            this.pendingCandidate === normalized &&
-            now - this.pendingCandidateTimestamp < 1200
-          ) {
-            this.pendingCandidateCount++;
-            if (this.pendingCandidateCount < 2) {
-              return; // Await confirmation frame
-            }
-          } else {
-            this.pendingCandidate = normalized;
-            this.pendingCandidateCount = 1;
-            this.pendingCandidateTimestamp = now;
-            return;
-          }
-        }
-
-        // Confirmed!
-        this.pendingCandidate = "";
-        this.pendingCandidateCount = 0;
+        // Confirmed valid barcode (passed GS1 checksum validation)
         this.lastScannedCode = normalized;
         this.lastScannedTime = now;
 
