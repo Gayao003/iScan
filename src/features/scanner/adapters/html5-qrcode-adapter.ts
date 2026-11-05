@@ -64,12 +64,11 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         Html5QrcodeSupportedFormats.DATA_MATRIX,     // 2D Data Matrix
       ];
 
-      // Enable native mobile hardware BarcodeDetector API for fast curved-surface & reflection decoding
+      // Universal, cross-device configuration (works identically on Huawei, Xiaomi, Apple, Samsung)
+      // Note: We avoid experimental BarcodeDetector because devices without Google Play Services (e.g. Huawei)
+      // advertise the API in Chromium but lack the GMS Vision backend, causing decoding to stall or fail.
       this.scannerInstance = new Html5Qrcode(elementId, {
         formatsToSupport,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true,
-        },
         verbose: false,
       });
 
@@ -106,7 +105,7 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         if (!is2DCode) {
           if (
             this.pendingCandidate === normalized &&
-            now - this.pendingCandidateTimestamp < 800
+            now - this.pendingCandidateTimestamp < 1200
           ) {
             this.pendingCandidateCount++;
             if (this.pendingCandidateCount < 2) {
