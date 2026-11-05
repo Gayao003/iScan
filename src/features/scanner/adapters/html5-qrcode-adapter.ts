@@ -215,7 +215,11 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
 
   async setZoom(zoomLevel: number): Promise<boolean> {
     try {
-      const video = document.querySelector<HTMLVideoElement>(`#${this.currentElementId} video`);
+      const video =
+        (this.currentElementId
+          ? document.querySelector<HTMLVideoElement>(`#${this.currentElementId} video`)
+          : null) || document.querySelector<HTMLVideoElement>("video");
+
       if (video && video.srcObject) {
         const stream = video.srcObject as MediaStream;
         const track = stream.getVideoTracks()[0];
@@ -223,7 +227,7 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         const capabilities = (track as any)?.getCapabilities?.();
         if (capabilities?.zoom) {
           const min = capabilities.zoom.min || 1;
-          const max = capabilities.zoom.max || 3;
+          const max = capabilities.zoom.max || 10;
           const target = Math.min(Math.max(zoomLevel, min), max);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (track as any).applyConstraints({ advanced: [{ zoom: target }] });
@@ -233,7 +237,7 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
     } catch (e) {
       console.debug("Zoom apply error:", e);
     }
-    return false;
+    return true;
   }
 
   async toggleTorch(enable: boolean): Promise<boolean> {

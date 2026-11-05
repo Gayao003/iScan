@@ -2,15 +2,14 @@
 
 import React from "react";
 import { AppHeader } from "@/shared/components/layout/AppHeader";
+import { InstallAppCard } from "@/shared/components/layout/InstallAppCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/shared/components/ui/Card";
 import { Badge } from "@/shared/components/ui/Badge";
 import {
   Camera,
   Smartphone,
   Database,
-  ShieldAlert,
   Info,
-  CheckCircle2,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -23,12 +22,17 @@ export default function SettingsPage() {
       />
 
       <main className="flex-1 p-4 sm:p-6 max-w-3xl mx-auto w-full space-y-6">
+        {/* Permanent PWA App Download / Installation Section */}
+        <section aria-label="Install iScan App">
+          <InstallAppCard compact={false} />
+        </section>
+
         {/* Camera Permission Diagnostic Card */}
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
               <Camera className="w-4 h-4 text-primary" />
-              <span>Camera Permissions & Privacy</span>
+              <span>Camera Permissions &amp; Privacy</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-xs text-slate-600 leading-relaxed">
@@ -53,34 +57,21 @@ export default function SettingsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
               <Smartphone className="w-4 h-4 text-primary" />
-              <span>Progressive Web App (PWA)</span>
+              <span>PWA Runtime Diagnostics</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-xs text-slate-600">
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span>Installable Manifest</span>
+              <span>Installable Web Manifest</span>
               <Badge variant="success">Active (/manifest.json)</Badge>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span>Service Worker</span>
+              <span>Service Worker Cache</span>
               <Badge variant="success">Registered (/sw.js)</Badge>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span>Display Mode</span>
-              <Badge variant="outline">standalone (fullscreen PWA)</Badge>
-            </div>
-            <div className="pt-2">
-              <p className="font-semibold text-slate-800 mb-1">
-                How to Add to Home Screen:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-slate-500">
-                <li><strong className="text-slate-700">Android Chrome:</strong> Tap the 3 dots menu (⋮) → tap <em>&quot;Install app&quot;</em> or <em>&quot;Add to Home Screen&quot;</em>.</li>
-                <li><strong className="text-slate-700">iPhone / iPad Safari:</strong> Tap the Share button (square with arrow) → tap <em>&quot;Add to Home Screen&quot;</em>.</li>
-                <li><strong className="text-slate-700">Desktop Chrome/Edge:</strong> Click the Install icon in the browser address bar.</li>
-              </ul>
-              <p className="text-[11px] text-blue-600 mt-2 font-medium">
-                Once launched from your Home Screen icon, the browser URL address bar disappears completely, giving you a native app experience.
-              </p>
+              <span>Fullscreen Scanning</span>
+              <Badge variant="outline">standalone mode supported</Badge>
             </div>
           </CardContent>
         </Card>
@@ -90,7 +81,7 @@ export default function SettingsPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
               <Database className="w-4 h-4 text-primary" />
-              <span>Active Architecture & Integration Boundary</span>
+              <span>Active Architecture &amp; Integration Boundary</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-xs text-slate-600">
@@ -105,7 +96,7 @@ export default function SettingsPage() {
               </div>
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-100">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
-                  MSSQL & Odoo Status
+                  MSSQL &amp; Odoo Status
                 </span>
                 <span className="font-semibold text-amber-700">
                   Deferred (Future Phase)

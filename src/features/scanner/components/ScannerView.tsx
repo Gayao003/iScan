@@ -13,11 +13,12 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
-  SwitchCamera,
   ZoomIn,
-  Zap,
 } from "lucide-react";
 import { scanHistoryStorage } from "@/features/history/storage/scan-history-storage";
+
+const ZOOM_LEVELS = [1, 2, 3, 4, 5] as const;
+type ZoomLevel = (typeof ZOOM_LEVELS)[number];
 
 interface ScannerViewProps {
   onScanSuccess?: (code: string) => void;
@@ -36,11 +37,8 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
   const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null);
 
-  // Multi-lens and hardware controls (vital for flagship multi-camera phones like Huawei/Xiaomi)
-  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
-  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
-  const [zoomLevel, setZoomLevel] = useState<1 | 2>(1);
-  const [torchOn, setTorchOn] = useState(false);
+  // Clean single-button hardware zoom cycling (1x -> 2x -> 3x -> 4x -> 5x -> 1x)
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(1);
 
   const handleDetected = useCallback((result: ScanResult) => {
     setDetectedCode(result.code);
@@ -140,16 +138,6 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         },
         cameraId
       );
-
-      // Enumerate available cameras so multi-lens phones can switch to main autofocus lens
-      try {
-        const availableCams = await adapterRef.current.getCameras();
-        if (availableCams && availableCams.length > 0) {
-          setCameras(availableCams);
-        }
-      } catch (e) {
-        console.debug("Could not query camera devices:", e);
-      }
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       const errStr = error.message.toLowerCase();
@@ -168,35 +156,17 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
     if (adapterRef.current) {
       await adapterRef.current.stop();
       setIsScanning(false);
-      setTorchOn(false);
       setZoomLevel(1);
     }
   };
 
-  const handleCycleLens = async () => {
-    if (!adapterRef.current || cameras.length <= 1) return;
-    const nextIdx = (currentCameraIndex + 1) % cameras.length;
-    setCurrentCameraIndex(nextIdx);
-    const nextCam = cameras[nextIdx];
-    await adapterRef.current.switchCamera(nextCam.id);
-  };
-
-  const handleToggleZoom = async () => {
+  // Single button zoom cycle: 1x -> 2x -> 3x -> 4x -> 5x -> 1x
+  const handleCycleZoom = async () => {
     if (!adapterRef.current) return;
-    const nextZoom = zoomLevel === 1 ? 2 : 1;
-    const ok = await adapterRef.current.setZoom(nextZoom);
-    if (ok) {
-      setZoomLevel(nextZoom);
-    }
-  };
-
-  const handleToggleTorch = async () => {
-    if (!adapterRef.current) return;
-    const nextState = !torchOn;
-    const ok = await adapterRef.current.toggleTorch(nextState);
-    if (ok) {
-      setTorchOn(nextState);
-    }
+    const currentIdx = ZOOM_LEVELS.indexOf(zoomLevel);
+    const nextZoom = ZOOM_LEVELS[(currentIdx + 1) % ZOOM_LEVELS.length];
+    await adapterRef.current.setZoom(nextZoom);
+    setZoomLevel(nextZoom);
   };
 
   useEffect(() => {
@@ -321,55 +291,25 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         )}
       </div>
 
-      {/* Hardware Lens & Zoom Toolstrip (Active when camera is running) */}
-      {isScanning && (
-        <div className="mt-2.5 flex items-center justify-center gap-2 w-full max-w-md">
-          {/* Switch Camera Lens (Crucial for Huawei/Flagship multi-camera setups) */}
-          {cameras.length > 1 && (
-            <button
-              onClick={handleCycleLens}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white hover:bg-slate-700 text-xs font-semibold rounded-lg shadow-sm border border-slate-700 transition-colors"
-              title="Switch camera lens (Main / Ultra-wide / Telephoto)"
-            >
-              <SwitchCamera className="w-3.5 h-3.5 text-blue-400" />
-              <span>Lens {currentCameraIndex + 1}/{cameras.length}</span>
-            </button>
-          )}
-
-          {/* 1x / 2x Zoom Toggle */}
-          <button
-            onClick={handleToggleZoom}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm border transition-colors ${
-              zoomLevel === 2
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-slate-800 text-slate-300 hover:text-white border-slate-700"
-            }`}
-            title="Toggle 2x Zoom (Helps flagship lenses focus from 30cm away)"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-            <span>{zoomLevel}x</span>
-          </button>
-
-          {/* Flashlight / Torch Toggle */}
-          <button
-            onClick={handleToggleTorch}
-            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm border transition-colors ${
-              torchOn
-                ? "bg-amber-500 text-white border-amber-400"
-                : "bg-slate-800 text-slate-300 hover:text-white border-slate-700"
-            }`}
-            title="Toggle Flashlight / Torch"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>{torchOn ? "Flash On" : "Flash"}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Camera Controls Bar */}
+      {/* Camera Controls Bar - Clean, streamlined controls */}
       <div className="mt-3 flex items-center justify-center gap-2 w-full max-w-md">
         {isScanning ? (
           <>
+            {/* Single clean zoom button that cycles 1x -> 2x -> 3x -> 4x -> 5x -> 1x */}
+            <button
+              onClick={handleCycleZoom}
+              type="button"
+              className={`flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm border transition-all ${
+                zoomLevel > 1
+                  ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-blue-100"
+                  : "bg-white text-slate-700 hover:bg-slate-50 border-slate-300"
+              }`}
+              title="Click to cycle zoom: 1x -> 2x -> 3x -> 4x -> 5x -> 1x"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+              <span>{zoomLevel}x</span>
+            </button>
+
             <Button
               onClick={stopScanner}
               variant="outline"
@@ -379,6 +319,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
               <CameraOff className="w-4 h-4 text-slate-500" />
               <span>Stop Camera</span>
             </Button>
+
             <Button
               onClick={() => {
                 if (typeof window !== "undefined") {

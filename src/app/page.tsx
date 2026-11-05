@@ -4,8 +4,9 @@ import React from "react";
 import { AppHeader } from "@/shared/components/layout/AppHeader";
 import { ScannerView } from "@/features/scanner/components/ScannerView";
 import { ManualEntryForm } from "@/features/scanner/components/ManualEntryForm";
+import { InstallAppCard } from "@/shared/components/layout/InstallAppCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/shared/components/ui/Card";
-import { ScanLine, Keyboard, Sparkles, CheckCircle2 } from "lucide-react";
+import { Keyboard, Sparkles, CheckCircle2 } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -34,6 +35,11 @@ export default function HomePage() {
               <ManualEntryForm />
             </CardContent>
           </Card>
+        </section>
+
+        {/* In-Page PWA Install Section */}
+        <section aria-label="Download and install app">
+          <InstallAppCard compact={true} />
         </section>
 
         {/* POC Demo Fixture Helper */}
