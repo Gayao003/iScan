@@ -13,6 +13,9 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
+  SwitchCamera,
+  ZoomIn,
+  Zap,
 } from "lucide-react";
 import { scanHistoryStorage } from "@/features/history/storage/scan-history-storage";
 
@@ -32,6 +35,12 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
 
   const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null);
+
+  // Multi-lens and hardware controls (vital for flagship multi-camera phones like Huawei/Xiaomi)
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+  const [zoomLevel, setZoomLevel] = useState<1 | 2>(1);
+  const [torchOn, setTorchOn] = useState(false);
 
   const handleDetected = useCallback((result: ScanResult) => {
     setDetectedCode(result.code);
@@ -85,7 +94,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
     }
   }, [onScanSuccess, router]);
 
-  const startScanner = async () => {
+  const startScanner = async (cameraId?: string) => {
     try {
       setErrorMessage(null);
       setDetectedCode(null);
@@ -128,8 +137,19 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
             setErrorMessage(error.message || "Failed to initialize camera scanner.");
           }
           setIsScanning(false);
-        }
+        },
+        cameraId
       );
+
+      // Enumerate available cameras so multi-lens phones can switch to main autofocus lens
+      try {
+        const availableCams = await adapterRef.current.getCameras();
+        if (availableCams && availableCams.length > 0) {
+          setCameras(availableCams);
+        }
+      } catch (e) {
+        console.debug("Could not query camera devices:", e);
+      }
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       const errStr = error.message.toLowerCase();
@@ -148,6 +168,34 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
     if (adapterRef.current) {
       await adapterRef.current.stop();
       setIsScanning(false);
+      setTorchOn(false);
+      setZoomLevel(1);
+    }
+  };
+
+  const handleCycleLens = async () => {
+    if (!adapterRef.current || cameras.length <= 1) return;
+    const nextIdx = (currentCameraIndex + 1) % cameras.length;
+    setCurrentCameraIndex(nextIdx);
+    const nextCam = cameras[nextIdx];
+    await adapterRef.current.switchCamera(nextCam.id);
+  };
+
+  const handleToggleZoom = async () => {
+    if (!adapterRef.current) return;
+    const nextZoom = zoomLevel === 1 ? 2 : 1;
+    const ok = await adapterRef.current.setZoom(nextZoom);
+    if (ok) {
+      setZoomLevel(nextZoom);
+    }
+  };
+
+  const handleToggleTorch = async () => {
+    if (!adapterRef.current) return;
+    const nextState = !torchOn;
+    const ok = await adapterRef.current.toggleTorch(nextState);
+    if (ok) {
+      setTorchOn(nextState);
     }
   };
 
@@ -196,7 +244,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
               Camera access is used locally to detect item barcodes and QR codes. No video is uploaded or recorded.
             </p>
             <Button
-              onClick={startScanner}
+              onClick={() => startScanner()}
               variant="primary"
               className="w-full max-w-xs gap-2 font-semibold shadow-lg"
             >
@@ -217,7 +265,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
               Please click the camera or lock icon in your browser address bar to allow camera access.
             </p>
             <Button
-              onClick={startScanner}
+              onClick={() => startScanner()}
               variant="secondary"
               size="sm"
               className="gap-2"
@@ -273,6 +321,51 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         )}
       </div>
 
+      {/* Hardware Lens & Zoom Toolstrip (Active when camera is running) */}
+      {isScanning && (
+        <div className="mt-2.5 flex items-center justify-center gap-2 w-full max-w-md">
+          {/* Switch Camera Lens (Crucial for Huawei/Flagship multi-camera setups) */}
+          {cameras.length > 1 && (
+            <button
+              onClick={handleCycleLens}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white hover:bg-slate-700 text-xs font-semibold rounded-lg shadow-sm border border-slate-700 transition-colors"
+              title="Switch camera lens (Main / Ultra-wide / Telephoto)"
+            >
+              <SwitchCamera className="w-3.5 h-3.5 text-blue-400" />
+              <span>Lens {currentCameraIndex + 1}/{cameras.length}</span>
+            </button>
+          )}
+
+          {/* 1x / 2x Zoom Toggle */}
+          <button
+            onClick={handleToggleZoom}
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm border transition-colors ${
+              zoomLevel === 2
+                ? "bg-blue-600 text-white border-blue-500"
+                : "bg-slate-800 text-slate-300 hover:text-white border-slate-700"
+            }`}
+            title="Toggle 2x Zoom (Helps flagship lenses focus from 30cm away)"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+            <span>{zoomLevel}x</span>
+          </button>
+
+          {/* Flashlight / Torch Toggle */}
+          <button
+            onClick={handleToggleTorch}
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm border transition-colors ${
+              torchOn
+                ? "bg-amber-500 text-white border-amber-400"
+                : "bg-slate-800 text-slate-300 hover:text-white border-slate-700"
+            }`}
+            title="Toggle Flashlight / Torch"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>{torchOn ? "Flash On" : "Flash"}</span>
+          </button>
+        </div>
+      )}
+
       {/* Camera Controls Bar */}
       <div className="mt-3 flex items-center justify-center gap-2 w-full max-w-md">
         {isScanning ? (
@@ -303,7 +396,7 @@ export function ScannerView({ onScanSuccess }: ScannerViewProps) {
         ) : (
           permissionState !== "prompt" && (
             <Button
-              onClick={startScanner}
+              onClick={() => startScanner()}
               variant="outline"
               size="sm"
               className="w-full gap-2 text-slate-700 bg-white shadow-sm"

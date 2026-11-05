@@ -33,12 +33,42 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
   private lastScannedTime = 0;
   private readonly debounceMs = 1500;
 
+  // Active stream and session state for multi-lens & zoom controls
+  private currentElementId = "";
+  private currentOnSuccess: ((result: ScanResult) => void) | null = null;
+  private currentOnError: ((error: Error) => void) | null = null;
+  private currentCameraId: string | null = null;
+
+  async getCameras(): Promise<Array<{ id: string; label: string }>> {
+    if (typeof window === "undefined") return [];
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const devices = await Html5Qrcode.getCameras();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return devices.map((d: any, index: number) => ({
+        id: d.id,
+        label: d.label || `Camera ${index + 1}`,
+      }));
+    } catch (e) {
+      console.warn("Could not retrieve camera list:", e);
+      return [];
+    }
+  }
+
   async start(
     elementId: string,
     onSuccess: (result: ScanResult) => void,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
+    cameraId?: string
   ): Promise<void> {
     if (typeof window === "undefined") return;
+
+    this.currentElementId = elementId;
+    this.currentOnSuccess = onSuccess;
+    this.currentOnError = onError;
+    if (cameraId) {
+      this.currentCameraId = cameraId;
+    }
 
     try {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import("html5-qrcode");
@@ -59,9 +89,7 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         Html5QrcodeSupportedFormats.DATA_MATRIX,     // 2D Data Matrix
       ];
 
-      // Universal, cross-device configuration (works identically on Huawei, Xiaomi, Apple, Samsung)
-      // Note: We avoid experimental BarcodeDetector because devices without Google Play Services (e.g. Huawei)
-      // advertise the API in Chromium but lack the GMS Vision backend, causing decoding to stall or fail.
+      // Cross-device universal ZXing configuration
       this.scannerInstance = new Html5Qrcode(elementId, {
         formatsToSupport,
         verbose: false,
@@ -130,19 +158,21 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
         // Continuous non-detection frames are expected during scanning
       };
 
+      const cameraSource = this.currentCameraId
+        ? this.currentCameraId
+        : { facingMode: "environment" };
+
       // Configuration: full-frame detection without qrbox cropping
       // Eliminates coordinate mismatch bugs on Android/Huawei display scaling
       await this.scannerInstance.start(
+        cameraSource,
         {
-          facingMode: "environment",
-        },
-        {
-          fps: 15, // Optimal 15 fps gives mobile CPU time to decode clean frames
-          disableFlip: true, // Stop rear-camera horizontal mirroring that inverts 1D bars
-          aspectRatio: 1.333333, // 4:3 matches native smartphone camera sensor ratio
-          videoConstraints: {
-            facingMode: "environment",
-          },
+          fps: 15,
+          disableFlip: true,
+          aspectRatio: 1.333333,
+          videoConstraints: this.currentCameraId
+            ? { deviceId: { exact: this.currentCameraId } }
+            : { facingMode: "environment" },
         },
         qrCodeSuccessCallback,
         qrCodeErrorCallback
@@ -173,6 +203,57 @@ export class Html5QrcodeAdapter implements IScannerAdapter {
       onError(errorObj);
       throw errorObj;
     }
+  }
+
+  async switchCamera(cameraId: string): Promise<void> {
+    this.currentCameraId = cameraId;
+    if (this.currentElementId && this.currentOnSuccess && this.currentOnError) {
+      await this.stop();
+      await this.start(this.currentElementId, this.currentOnSuccess, this.currentOnError, cameraId);
+    }
+  }
+
+  async setZoom(zoomLevel: number): Promise<boolean> {
+    try {
+      const video = document.querySelector<HTMLVideoElement>(`#${this.currentElementId} video`);
+      if (video && video.srcObject) {
+        const stream = video.srcObject as MediaStream;
+        const track = stream.getVideoTracks()[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const capabilities = (track as any)?.getCapabilities?.();
+        if (capabilities?.zoom) {
+          const min = capabilities.zoom.min || 1;
+          const max = capabilities.zoom.max || 3;
+          const target = Math.min(Math.max(zoomLevel, min), max);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (track as any).applyConstraints({ advanced: [{ zoom: target }] });
+          return true;
+        }
+      }
+    } catch (e) {
+      console.debug("Zoom apply error:", e);
+    }
+    return false;
+  }
+
+  async toggleTorch(enable: boolean): Promise<boolean> {
+    try {
+      const video = document.querySelector<HTMLVideoElement>(`#${this.currentElementId} video`);
+      if (video && video.srcObject) {
+        const stream = video.srcObject as MediaStream;
+        const track = stream.getVideoTracks()[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const capabilities = (track as any)?.getCapabilities?.();
+        if (capabilities?.torch) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (track as any).applyConstraints({ advanced: [{ torch: enable }] });
+          return true;
+        }
+      }
+    } catch (e) {
+      console.debug("Torch error:", e);
+    }
+    return false;
   }
 
   pause(): void {
