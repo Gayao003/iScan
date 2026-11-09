@@ -3,15 +3,15 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ScanLine, ClipboardList, GitCompare, History, Settings } from "lucide-react";
+import { ScanLine, ClipboardList, GitCompare, History, Settings, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MOBILE_NAV_ITEMS = [
-  { href: "/", label: "Scan", icon: ScanLine },
-  { href: "/counts", label: "Counts", icon: ClipboardList },
-  { href: "/reconciliation", label: "Reconcile", icon: GitCompare },
-  { href: "/history", label: "History", icon: History },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Scan", icon: ScanLine, isLocked: false },
+  { href: "/counts", label: "Counts", icon: ClipboardList, isLocked: true },
+  { href: "/reconciliation", label: "Reconcile", icon: GitCompare, isLocked: true },
+  { href: "/history", label: "History", icon: History, isLocked: true },
+  { href: "/settings", label: "Settings", icon: Settings, isLocked: true },
 ];
 
 export function MobileBottomNav() {
@@ -28,6 +28,23 @@ export function MobileBottomNav() {
             pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href));
           const Icon = item.icon;
+
+          if (item.isLocked) {
+            return (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                title={`${item.label} (Temporarily locked)`}
+                className="flex flex-col items-center justify-center py-1.5 px-2 rounded-lg text-[10px] sm:text-[11px] font-medium text-slate-400 opacity-40 cursor-not-allowed select-none min-h-[48px] min-w-[50px] relative pointer-events-none"
+              >
+                <div className="relative">
+                  <Icon className="w-5 h-5 mb-0.5 text-slate-400" />
+                  <Lock className="w-2.5 h-2.5 text-slate-500 absolute -top-1 -right-1" />
+                </div>
+                <span>{item.label}</span>
+              </div>
+            );
+          }
 
           return (
             <Link

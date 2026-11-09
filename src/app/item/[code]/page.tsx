@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { AppHeader } from "@/shared/components/layout/AppHeader";
 import { ItemDetailCard } from "@/features/catalog/components/ItemDetailCard";
 import { ItemNotFoundCard } from "@/features/catalog/components/ItemNotFoundCard";
-import { CountForm } from "@/features/inventory/components/CountForm";
 import { Alert, AlertTitle, AlertDescription } from "@/shared/components/ui/Alert";
 import { Button } from "@/shared/components/ui/Button";
 import { Item } from "@/shared/types/item";
@@ -22,7 +21,6 @@ export default function ItemResultPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isNotFound, setIsNotFound] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [showCountForm, setShowCountForm] = useState(false);
 
   const fetchItem = async (codeToFetch: string) => {
     try {
@@ -80,15 +78,15 @@ export default function ItemResultPage() {
       />
 
       <main className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-6">
-        {/* Loading state skeleton */}
+        {/* Loading state */}
         {isLoading && (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center space-y-4 shadow-sm">
             <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto" />
             <h3 className="text-base font-semibold text-slate-800">
-              Querying Catalog Database...
+              Querying Database...
             </h3>
             <p className="text-xs text-slate-500 font-mono">
-              Resolving code: {decodedCode}
+              Resolving barcode: {decodedCode}
             </p>
           </div>
         )}
@@ -125,25 +123,9 @@ export default function ItemResultPage() {
           <ItemNotFoundCard scannedCode={decodedCode} />
         )}
 
-        {/* Found state */}
+        {/* Found state: purely database info */}
         {!isLoading && item && (
-          <div className="space-y-6">
-            <ItemDetailCard
-              item={item}
-              onRecordCountClick={() => setShowCountForm(!showCountForm)}
-            />
-
-            {/* Inlined Count Recording Form */}
-            {showCountForm && (
-              <CountForm
-                initialCode={item.code}
-                initialItemId={item.id}
-                onCountSaved={() => {
-                  setTimeout(() => setShowCountForm(false), 2000);
-                }}
-              />
-            )}
-          </div>
+          <ItemDetailCard item={item} />
         )}
       </main>
     </div>

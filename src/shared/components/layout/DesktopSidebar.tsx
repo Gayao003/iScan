@@ -10,15 +10,16 @@ import {
   History,
   Settings,
   ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Scan Item", icon: ScanLine },
-  { href: "/counts", label: "Counts", icon: ClipboardList },
-  { href: "/reconciliation", label: "Reconciliation", icon: GitCompare },
-  { href: "/history", label: "History", icon: History },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Scan Item", icon: ScanLine, isLocked: false },
+  { href: "/counts", label: "Counts", icon: ClipboardList, isLocked: true },
+  { href: "/reconciliation", label: "Reconciliation", icon: GitCompare, isLocked: true },
+  { href: "/history", label: "History", icon: History, isLocked: true },
+  { href: "/settings", label: "Settings", icon: Settings, isLocked: true },
 ];
 
 export function DesktopSidebar() {
@@ -36,7 +37,7 @@ export function DesktopSidebar() {
             iScan
           </span>
           <span className="block text-[10px] font-semibold tracking-wider text-primary uppercase">
-            Phase 2 POC
+            Barcode Scanner
           </span>
         </div>
       </div>
@@ -48,6 +49,23 @@ export function DesktopSidebar() {
             pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href));
           const Icon = item.icon;
+
+          if (item.isLocked) {
+            return (
+              <div
+                key={item.href}
+                aria-disabled="true"
+                title={`${item.label} (Temporarily locked)`}
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 opacity-40 cursor-not-allowed select-none pointer-events-none"
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className="w-5 h-5 text-slate-400" />
+                  <span>{item.label}</span>
+                </div>
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+              </div>
+            );
+          }
 
           return (
             <Link
@@ -72,8 +90,8 @@ export function DesktopSidebar() {
         <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
         <span>
           {process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true"
-            ? "Mock Adapter Active"
-            : "Supabase PostgreSQL Active"}
+            ? "Mock Database Active"
+            : "Supabase Database Active"}
         </span>
       </div>
     </aside>
